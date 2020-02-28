@@ -52,8 +52,6 @@
 #include <sstream>
 #include <thread>
 
-using namespace tiledb::test;
-
 struct ArrayFx {
   const std::string HDFS_TEMP_DIR = "hdfs:///tiledb_test/";
   const std::string S3_PREFIX = "s3://";
@@ -219,7 +217,8 @@ void ArrayFx::set_supported_fs() {
   tiledb_ctx_t* ctx = nullptr;
   REQUIRE(tiledb_ctx_alloc(nullptr, &ctx) == TILEDB_OK);
 
-  get_supported_fs(&supports_s3_, &supports_hdfs_, &supports_azure_);
+  tiledb::test::get_supported_fs(
+      &supports_s3_, &supports_hdfs_, &supports_azure_);
 
   tiledb_ctx_free(&ctx);
 }

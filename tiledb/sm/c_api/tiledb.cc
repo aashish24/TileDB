@@ -4045,17 +4045,24 @@ int32_t tiledb_vfs_touch(
 int32_t tiledb_uri_to_path(
     tiledb_ctx_t* ctx, const char* uri, char* path_out, uint32_t* path_length) {
   if (sanity_check(ctx) == TILEDB_ERR || uri == nullptr ||
-      path_out == nullptr || path_length == nullptr)
+      path_out == nullptr || path_length == nullptr) {
+    std::cerr << "JOE tiledb_uri_to_path 1" << std::endl;
     return TILEDB_ERR;
+  }
 
   std::string path = tiledb::sm::URI::to_path(uri);
   if (path.empty() || path.length() + 1 > *path_length) {
+    std::cerr << "JOE tiledb_uri_to_path 2" << std::endl;
+    std::cerr << "JOE tiledb_uri_to_path 2.1" << path << std::endl;
+    std::cerr << "JOE tiledb_uri_to_path 2.2" << path.length() << std::endl;
+    std::cerr << "JOE tiledb_uri_to_path 2.3" << *path_length << std::endl;
     *path_length = 0;
     return TILEDB_ERR;
   } else {
     *path_length = static_cast<uint32_t>(path.length());
     path.copy(path_out, path.length());
     path_out[path.length()] = '\0';
+    std::cerr << "JOE tiledb_uri_to_path 3" << std::endl;
     return TILEDB_OK;
   }
 }

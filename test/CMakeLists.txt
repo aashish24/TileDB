@@ -216,7 +216,7 @@ endif()
 
 add_test(
   NAME "tiledb_unit"
-  COMMAND $<TARGET_FILE:tiledb_unit> --durations=yes
+  COMMAND $<TARGET_FILE:tiledb_unit> --durations=yes "*Test getting array URI*"
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 

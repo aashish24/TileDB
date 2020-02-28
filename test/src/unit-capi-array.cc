@@ -470,7 +470,8 @@ TEST_CASE_METHOD(
 
 #ifdef _WIN32
   char path[MAX_PATH];
-  unsigned length;
+  unsigned length = MAX_PATH;
+  std::cerr << "JOE uri: " << uri << std::endl;
   rc = tiledb_uri_to_path(ctx_, uri, path, &length);
   CHECK(rc == TILEDB_OK);
   CHECK(!strcmp(path, array_name.c_str()));

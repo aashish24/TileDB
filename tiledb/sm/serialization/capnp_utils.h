@@ -320,27 +320,52 @@ tiledb::sm::Status serialize_subarray(
     const tiledb::sm::ArraySchema* array_schema,
     const void* subarray) {
   // Check coords type
-  const auto coords_type = array_schema->coords_type();
-  switch (coords_type) {
-    case tiledb::sm::Datatype::CHAR:
-    case tiledb::sm::Datatype::STRING_ASCII:
-    case tiledb::sm::Datatype::STRING_UTF8:
-    case tiledb::sm::Datatype::STRING_UTF16:
-    case tiledb::sm::Datatype::STRING_UTF32:
-    case tiledb::sm::Datatype::STRING_UCS2:
-    case tiledb::sm::Datatype::STRING_UCS4:
-    case tiledb::sm::Datatype::ANY:
-      // String dimensions not yet supported
-      return LOG_STATUS(tiledb::sm::Status::SerializationError(
-          "Cannot serialize subarray; unsupported domain type."));
-    default:
-      break;
+  auto dim_num = array_schema->dim_num();
+  uint64_t subarray_size = 0;
+  Datatype first_dimension_datatype = array_schema->dimension(0)->type();
+  // If all the dimensions are the same datatype, then we will store the
+  // subarray in a type array for <=1.7 compatibility
+  bool homogeneous_dimensions = true;
+  for (unsigned d = 0; d < dim_num; ++d) {
+    auto dimension = array_schema->dimension(d);
+    const auto coords_type = dimension->type();
+
+    // Different dimension types, must be 1.8 or newer
+    if (coords_type != first_dimension_datatype) {
+      homogeneous_dimensions = false;
+    }
+
+    switch (coords_type) {
+      case tiledb::sm::Datatype::CHAR:
+      case tiledb::sm::Datatype::STRING_ASCII:
+      case tiledb::sm::Datatype::STRING_UTF8:
+      case tiledb::sm::Datatype::STRING_UTF16:
+      case tiledb::sm::Datatype::STRING_UTF32:
+      case tiledb::sm::Datatype::STRING_UCS2:
+      case tiledb::sm::Datatype::STRING_UCS4:
+      case tiledb::sm::Datatype::ANY:
+        // String dimensions not yet supported
+        return LOG_STATUS(tiledb::sm::Status::SerializationError(
+            "Cannot serialize subarray; unsupported domain type."));
+      default:
+        break;
+    }
+    subarray_size += 2 * dimension->coord_size();
   }
 
-  const uint64_t subarray_size = 2 * array_schema->coords_size();
-  const uint64_t subarray_length = subarray_size / datatype_size(coords_type);
-  RETURN_NOT_OK(
-      set_capnp_array_ptr(builder, coords_type, subarray, subarray_length));
+  if (homogeneous_dimensions) {
+    // Store subarray in typed array for backwards compatibility with 1.7/1.6
+    const uint64_t subarray_length =
+        subarray_size / datatype_size(first_dimension_datatype);
+    RETURN_NOT_OK(set_capnp_array_ptr(
+        builder, first_dimension_datatype, subarray, subarray_length));
+  } else {
+    // Serialize subarray as uint8 bytes since now
+    const uint64_t subarray_length =
+        subarray_size / datatype_size(tiledb::sm::Datatype::UINT8);
+    RETURN_NOT_OK(set_capnp_array_ptr(
+        builder, tiledb::sm::Datatype::UINT8, subarray, subarray_length));
+  }
 
   return tiledb::sm::Status::Ok();
 }
@@ -351,26 +376,49 @@ tiledb::sm::Status deserialize_subarray(
     const tiledb::sm::ArraySchema* array_schema,
     void** subarray) {
   // Check coords type
-  const auto coords_type = array_schema->coords_type();
-  switch (coords_type) {
-    case tiledb::sm::Datatype::CHAR:
-    case tiledb::sm::Datatype::STRING_ASCII:
-    case tiledb::sm::Datatype::STRING_UTF8:
-    case tiledb::sm::Datatype::STRING_UTF16:
-    case tiledb::sm::Datatype::STRING_UTF32:
-    case tiledb::sm::Datatype::STRING_UCS2:
-    case tiledb::sm::Datatype::STRING_UCS4:
-    case tiledb::sm::Datatype::ANY:
-      // String dimensions not yet supported
-      return LOG_STATUS(tiledb::sm::Status::SerializationError(
-          "Cannot deserialize subarray; unsupported domain type."));
-    default:
-      break;
+  auto dim_num = array_schema->dim_num();
+  uint64_t subarray_size = 0;
+  Datatype first_dimension_datatype = array_schema->dimension(0)->type();
+  // If all the dimensions are the same datatype, then we will store the
+  // subarray in a type array for <=1.7 compatibility
+  bool homogeneous_dimensions = true;
+  for (unsigned d = 0; d < dim_num; ++d) {
+    auto dimension = array_schema->dimension(d);
+    const auto coords_type = dimension->type();
+
+    // Different dimension types, must be 1.8 or newer
+    if (coords_type != first_dimension_datatype) {
+      homogeneous_dimensions = false;
+    }
+
+    switch (coords_type) {
+      case tiledb::sm::Datatype::CHAR:
+      case tiledb::sm::Datatype::STRING_ASCII:
+      case tiledb::sm::Datatype::STRING_UTF8:
+      case tiledb::sm::Datatype::STRING_UTF16:
+      case tiledb::sm::Datatype::STRING_UTF32:
+      case tiledb::sm::Datatype::STRING_UCS2:
+      case tiledb::sm::Datatype::STRING_UCS4:
+      case tiledb::sm::Datatype::ANY:
+        // String dimensions not yet supported
+        return LOG_STATUS(tiledb::sm::Status::SerializationError(
+            "Cannot deserialize subarray; unsupported domain type."));
+      default:
+        break;
+    }
+    subarray_size += 2 * dimension->coord_size();
   }
 
-  const uint64_t subarray_size = 2 * array_schema->coords_size();
   tiledb::sm::Buffer subarray_buff;
-  RETURN_NOT_OK(copy_capnp_list(reader, coords_type, &subarray_buff));
+  // If we have homogeneous dimensions we use typed cap'n proto array for
+  // backwards compatibility with 1.6/1.7
+  if (homogeneous_dimensions) {
+    RETURN_NOT_OK(
+        copy_capnp_list(reader, first_dimension_datatype, &subarray_buff));
+  } else {
+    RETURN_NOT_OK(
+        copy_capnp_list(reader, tiledb::sm::Datatype::UINT8, &subarray_buff));
+  }
 
   if (subarray_buff.size() == 0) {
     *subarray = nullptr;
